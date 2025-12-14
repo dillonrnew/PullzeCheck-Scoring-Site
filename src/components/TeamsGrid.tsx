@@ -9,7 +9,7 @@ type Team = {
   id: number;
   name: string;
   short_name: string | null;
-  logo_url: string | null;
+  logo_url: string;
   player1_name: string;
   player2_name: string;
   player3_name: string;
