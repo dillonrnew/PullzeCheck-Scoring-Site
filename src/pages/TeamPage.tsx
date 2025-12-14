@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import imageCompression from 'browser-image-compression';
 import '../styles/teamPage.css';
 
 const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
@@ -7,21 +8,70 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
   const [imagePreview, setImagePreview] = useState('');
   const [mapNumber, setMapNumber] = useState<number>(1);
   const [placement, setPlacement] = useState<number>(0);
-  const [playerKills, setPlayerKills] = useState([0, 0, 0]);
+  const [playerKills, setPlayerKills] = useState(['', '', '']); // Empty strings instead of 0s
   const [submitting, setSubmitting] = useState(false);
 
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const pasteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Compression options
+  const compressionOptions = {
+    maxSizeMB: 0.8,
+    maxWidthOrHeight: 1920,
+    useWebWorker: true,
+    fileType: 'image/jpeg',
+    initialQuality: 0.85,
+  };
+
+  // Handle file upload
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (!file) return;
+
+    try {
+      const compressedFile = await imageCompression(file, compressionOptions);
+      setImageFile(compressedFile);
+      setImagePreview(URL.createObjectURL(compressedFile));
+    } catch (error) {
+      console.error('Image compression failed:', error);
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  // Handle paste event for images
+  // Shared image processing
+  const processPastedImage = async (file: File) => {
+    try {
+      const compressedFile = await imageCompression(file, compressionOptions);
+      setImageFile(compressedFile);
+      setImagePreview(URL.createObjectURL(compressedFile));
+    } catch (error) {
+      console.error('Paste compression failed:', error);
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  // Paste in textarea
+  const handleTextareaPaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!e.clipboardData) return;
+    const items = e.clipboardData.items;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          await processPastedImage(file);
+        }
+      }
+    }
+  };
+
+  // Global paste fallback
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
+    const handleGlobalPaste = async (e: ClipboardEvent) => {
+      if (document.activeElement === pasteTextareaRef.current) return;
+
       if (!e.clipboardData) return;
       const items = e.clipboardData.items;
       for (let i = 0; i < items.length; i++) {
@@ -29,17 +79,17 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
         if (item.type.indexOf('image') !== -1) {
           const file = item.getAsFile();
           if (file) {
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
+            await processPastedImage(file);
           }
         }
       }
     };
-    window.addEventListener('paste', handlePaste);
-    return () => window.removeEventListener('paste', handlePaste);
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
   }, []);
 
-  // Handle form submission
+  // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!imageFile) {
@@ -47,34 +97,38 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
       return;
     }
 
+    // Validate kills are numbers and not empty
+    const killsNums = playerKills.map(k => k === '' ? 0 : Number(k));
+    if (killsNums.some(isNaN)) {
+      alert('Please enter valid numbers for player kills.');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // 1️⃣ Upload image to Supabase Storage
-      const fileExt = imageFile.name.split('.').pop();
-      const fileName = `team${teamId}_map${mapNumber}_${Date.now()}.${fileExt}`;
+      const fileName = `team${teamId}_map${mapNumber}_${Date.now()}.jpg`;
+
       const { error: uploadError } = await supabase.storage
         .from('scoreboards')
         .upload(fileName, imageFile, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 2️⃣ Get public URL (no error property)
       const { data: publicData } = supabase.storage
         .from('scoreboards')
         .getPublicUrl(fileName);
 
       const imageUrl = publicData.publicUrl;
 
-      // 3️⃣ Insert submission row into Supabase
       const { error: insertError } = await supabase
         .from('submissions')
         .insert({
           team_id: teamId,
           map_number: mapNumber,
-          player1_kills: playerKills[0],
-          player2_kills: playerKills[1],
-          player3_kills: playerKills[2],
+          player1_kills: killsNums[0],
+          player2_kills: killsNums[1],
+          player3_kills: killsNums[2],
           placement,
           scoreboard_image_url: imageUrl,
         });
@@ -83,10 +137,10 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
 
       alert('Submission uploaded successfully!');
 
-      // Reset form for next map
+      // Reset form
       setMapNumber(prev => prev + 1);
       setPlacement(0);
-      setPlayerKills([0, 0, 0]);
+      setPlayerKills(['', '', '']);
       setImageFile(null);
       setImagePreview('');
     } catch (error: any) {
@@ -96,6 +150,11 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
       setSubmitting(false);
     }
   };
+
+  // Dynamic placeholder for paste textarea
+  const pastePlaceholder = imagePreview
+    ? '✓ Image added – Ctrl+V to replace'
+    : 'Click here and press Ctrl+V to paste your scoreboard screenshot...';
 
   return (
     <div className="team-page">
@@ -107,6 +166,7 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
             type="number"
             value={mapNumber}
             onChange={e => setMapNumber(Number(e.target.value))}
+            min="1"
             required
           />
 
@@ -116,19 +176,16 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
             onChange={e => setPlacement(Number(e.target.value))}
             required
           >
-            <option value="" disabled>
-              Select placement
-            </option>
+            <option value="" disabled>Select placement</option>
             {Array.from({ length: 16 }, (_, i) => i + 1).map(i => (
               <option key={i} value={i}>
-                {i}
-                {i === 1 ? 'st' : i === 2 ? 'nd' : i === 3 ? 'rd' : 'th'}
+                {i}{i === 1 ? 'st' : i === 2 ? 'nd' : i === 3 ? 'rd' : 'th'}
               </option>
             ))}
           </select>
 
           {['Player 1', 'Player 2', 'Player 3'].map((player, idx) => (
-            <div key={idx}>
+            <div key={idx} className="kills-input-group">
               <label>{player} Kills</label>
               <input
                 type="number"
@@ -136,30 +193,41 @@ const TeamPage: React.FC<{ teamId: number }> = ({ teamId }) => {
                 onChange={e =>
                   setPlayerKills(prev => {
                     const copy = [...prev];
-                    copy[idx] = Number(e.target.value);
+                    copy[idx] = e.target.value;
                     return copy;
                   })
                 }
+                min="0"
+                placeholder=""
                 required
               />
             </div>
           ))}
 
-          <label>Upload or Paste Scoreboard</label>
+          <label>Scoreboard Image</label>
           <input type="file" accept="image/*" onChange={handleFileChange} />
+
+          <label htmlFor="paste-area">Or paste your screenshot here:</label>
           <textarea
-            placeholder="Paste image with Ctrl+V"
+            id="paste-area"
+            ref={pasteTextareaRef}
+            placeholder={pastePlaceholder}
             rows={4}
-            readOnly
-            value={imagePreview}
-          ></textarea>
+            onPaste={handleTextareaPaste}
+            className="paste-textarea"
+          />
 
           {imagePreview && (
-            <img id="image-preview" src={imagePreview} alt="Preview" />
+            <div className="preview-container">
+              <p className="preview-label">Preview:</p>
+              <div className="image-wrapper">
+                <img src={imagePreview} alt="Scoreboard Preview" />
+              </div>
+            </div>
           )}
 
           <button type="submit" disabled={submitting}>
-            {submitting ? 'Submitting...' : 'Submit'}
+            {submitting ? 'Submitting...' : 'Submit Score'}
           </button>
         </form>
       </div>
