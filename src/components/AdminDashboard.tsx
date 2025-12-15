@@ -10,10 +10,6 @@ type TeamJoinRow = {
   player3_name: string | null;
 };
 
-// Supabase can return the joined relationship as:
-// - an array (common in PostgREST)
-// - a single object (sometimes)
-// - null
 type TeamJoinShape = TeamJoinRow[] | TeamJoinRow | null;
 
 type SubmissionRow = {
@@ -25,8 +21,8 @@ type SubmissionRow = {
   player3_kills: number;
   placement: number | null;
   scoreboard_image_url: string | null;
-  status: string; // DB is text; we’ll normalize
-  team: TeamJoinShape; // 👈 robust
+  status: string;
+  team: TeamJoinShape;
 };
 
 type Submission = {
@@ -46,7 +42,7 @@ type Submission = {
   };
 };
 
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 10_000;
 
 function pickTeam(team: TeamJoinShape): TeamJoinRow | null {
   if (!team) return null;
@@ -83,7 +79,7 @@ const AdminDashboard: React.FC = () => {
         )
       `
       )
-      .eq('status', 'pending') // ✅ ONLY pending
+      .eq('status', 'pending')
       .order('id', { ascending: false })
       .returns<SubmissionRow[]>();
 
@@ -121,23 +117,23 @@ const AdminDashboard: React.FC = () => {
     setLoading(false);
   };
 
-
-  const toggleStatus = async (submission: Submission) => {
-    const newStatus =
-      submission.status === 'pending'
-        ? 'approved'
-        : submission.status === 'approved'
-        ? 'rejected'
-        : 'pending';
+  // ✅ Set explicit status and remove from the list immediately
+  const setStatus = async (submissionId: string, newStatus: 'approved' | 'rejected') => {
+    // optimistic remove (because this view shows only pending)
+    const prev = submissions;
+    setSubmissions((cur) => cur.filter((s) => s.id !== submissionId));
 
     const { error } = await supabase
       .from('submissions')
       .update({ status: newStatus })
-      .eq('id', submission.id);
+      .eq('id', submissionId);
 
-    if (error) console.error('Error updating status:', error);
-
-    fetchSubmissions();
+    if (error) {
+      console.error('Error updating status:', error);
+      // revert if it failed
+      setSubmissions(prev);
+      return;
+    }
   };
 
   useEffect(() => {
@@ -177,7 +173,7 @@ const AdminDashboard: React.FC = () => {
                 <th className="table-header">Map #</th>
                 <th className="table-header">Kills</th>
                 <th className="table-header">Placement</th>
-                <th className="table-header">Toggle</th>
+                <th className="table-header">Actions</th>
                 <th className="table-header">Scoreboard</th>
               </tr>
             </thead>
@@ -207,22 +203,20 @@ const AdminDashboard: React.FC = () => {
                   <td className="table-cell cell-center">{s.placement ?? ''}</td>
 
                   <td className="table-cell cell-center">
-                    <button
-                      className={`toggle-button ${
-                        s.status === 'pending'
-                          ? 'approve'
-                          : s.status === 'approved'
-                          ? 'reject'
-                          : 'pending'
-                      }`}
-                      onClick={() => toggleStatus(s)}
-                    >
-                      {s.status === 'pending'
-                        ? 'Approve'
-                        : s.status === 'approved'
-                        ? 'Reject'
-                        : 'Set Pending'}
-                    </button>
+                    <div className="action-buttons">
+                      <button
+                        className="approve-btn"
+                        onClick={() => setStatus(s.id, 'approved')}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="deny-btn"
+                        onClick={() => setStatus(s.id, 'rejected')}
+                      >
+                        Deny
+                      </button>
+                    </div>
                   </td>
 
                   <td className="table-cell cell-center">
@@ -243,6 +237,14 @@ const AdminDashboard: React.FC = () => {
                   </td>
                 </tr>
               ))}
+
+              {submissions.length === 0 && (
+                <tr>
+                  <td className="table-cell cell-center" colSpan={5}>
+                    No pending submissions 🎉
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
