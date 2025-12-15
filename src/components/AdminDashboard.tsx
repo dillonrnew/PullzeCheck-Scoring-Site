@@ -83,8 +83,8 @@ const AdminDashboard: React.FC = () => {
         )
       `
       )
+      .eq('status', 'pending') // ✅ ONLY pending
       .order('id', { ascending: false })
-      // ✅ This is the key to “no TS errors”
       .returns<SubmissionRow[]>();
 
     const { data, error } = await query;
@@ -120,6 +120,7 @@ const AdminDashboard: React.FC = () => {
     setSubmissions(normalized);
     setLoading(false);
   };
+
 
   const toggleStatus = async (submission: Submission) => {
     const newStatus =
