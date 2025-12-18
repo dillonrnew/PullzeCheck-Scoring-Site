@@ -1,9 +1,9 @@
-// src/pages/TeamPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import imageCompression from 'browser-image-compression';
-import '../styles/teamPage.css';
+import '../styles/SubmissionPage.css';
+import TopBar from '../components/TopBar';
 
 type Team = {
   id: number;
@@ -31,12 +31,16 @@ const TeamPage: React.FC = () => {
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState('');
-  const [mapNumber, setMapNumber] = useState<number>(1);
+  const [selectedMap, setSelectedMap] = useState<number>(1);
   const [placement, setPlacement] = useState<number>(0);
   const [playerKills, setPlayerKills] = useState(['', '', '']);
   const [submitting, setSubmitting] = useState(false);
 
   const pasteTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleSelectMap = (mapNum: number) => {
+    setSelectedMap(mapNum);
+  };
 
   // Compression options
   const compressionOptions = {
@@ -71,7 +75,6 @@ const TeamPage: React.FC = () => {
 
     fetchTeam();
   }, [tId, tNum]);
-
 
   // Handle file upload
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,7 +167,7 @@ const TeamPage: React.FC = () => {
     setSubmitting(true);
 
     try {
-      const fileName = `t${tournamentId}_team${teamNumber}_teamId${team.id}_map${mapNumber}_${Date.now()}.jpg`;
+      const fileName = `t${tournamentId}_team${teamNumber}_teamId${team.id}_map${selectedMap}_${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage
         .from('scoreboards')
@@ -178,25 +181,23 @@ const TeamPage: React.FC = () => {
 
       const imageUrl = publicData.publicUrl;
 
-      const { error: insertError } = await supabase
-        .from('submissions')
-        .insert({
-          team_id: team.id,
-          tournament_id: team.tournament_id,
-          map_number: mapNumber,
-          player1_kills: killsNums[0],
-          player2_kills: killsNums[1],
-          player3_kills: killsNums[2],
-          placement,
-          scoreboard_image_url: imageUrl,
-        });
+      const { error: insertError } = await supabase.from('submissions').insert({
+        team_id: team.id,
+        tournament_id: team.tournament_id,
+        map_number: selectedMap,
+        player1_kills: killsNums[0],
+        player2_kills: killsNums[1],
+        player3_kills: killsNums[2],
+        placement,
+        scoreboard_image_url: imageUrl,
+      });
 
       if (insertError) throw insertError;
 
       alert('Submission uploaded successfully!');
 
       // Reset form
-      setMapNumber((prev) => prev + 1);
+      setSelectedMap((prev) => Math.min(prev + 1, 15));
       setPlacement(0);
       setPlayerKills(['', '', '']);
       setImageFile(null);
@@ -239,25 +240,14 @@ const TeamPage: React.FC = () => {
 
   return (
     <div className="team-page">
+      <h1 style={{ textAlign: 'center' }}>Submit Your Score</h1>
+
+      <TopBar selectedMap={selectedMap} onSelectMap={handleSelectMap} />
+
       <div className="form-container">
-        <h1>Submit Your Score</h1>
-
         <form onSubmit={handleSubmit}>
-          <label>Map Number</label>
-          <input
-            type="number"
-            value={mapNumber}
-            onChange={(e) => setMapNumber(Number(e.target.value))}
-            min="1"
-            required
-          />
-
           <label>Map Placement</label>
-          <select
-            value={placement || ''}
-            onChange={(e) => setPlacement(Number(e.target.value))}
-            required
-          >
+          <select value={placement || ''} onChange={(e) => setPlacement(Number(e.target.value))} required>
             <option value="" disabled>
               Select placement
             </option>
@@ -311,7 +301,7 @@ const TeamPage: React.FC = () => {
             </div>
           )}
 
-          <button type="submit" disabled={submitting}>
+          <button type="submit" className="submit-score-btn" disabled={submitting}>
             {submitting ? 'Submitting...' : 'Submit Score'}
           </button>
         </form>

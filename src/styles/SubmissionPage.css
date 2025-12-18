@@ -16,17 +16,14 @@ body {
    ========================= */
 .team-page {
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
-  padding: 4rem 1.5rem;
-  box-sizing: border-box;
+  flex-direction: column;
 }
 
 .form-container {
-  text-align: center;
   width: 100%;
-  max-width: 600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 /* =========================
@@ -47,15 +44,15 @@ h1 {
    ========================= */
 form {
   background: rgba(20, 24, 45, 0.9);
-  padding: 2.2rem;
-  border-radius: 16px;
-  border: 2px solid rgba(110, 142, 251, 0.45);
-  width: 100%;
+  border-radius: 0 0 16px 16px;
+  border-left: 2px solid rgba(110, 142, 251, 0.45);
+  border-bottom: 2px solid rgba(110, 142, 251, 0.45);
+  border-right: 2px solid rgba(110, 142, 251, 0.45);
+  width: 40%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  box-sizing: border-box;
-  backdrop-filter: blur(8px);
+  padding-bottom: 30px;
 }
 
 /* =========================
@@ -176,9 +173,9 @@ textarea {
 }
 
 /* =========================
-   BUTTON
+   SUBMIT SCORE BUTTON
    ========================= */
-button {
+.submit-score-btn {
   width: 100%;
   max-width: 420px;
   padding: 14px;
@@ -194,12 +191,12 @@ button {
   box-shadow: 0 10px 25px rgba(110, 142, 251, 0.35);
 }
 
-button:hover {
+.submit-score-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 35px rgba(167, 119, 228, 0.45);
 }
 
-button:disabled {
+.submit-score-btn:disabled {
   background: #3a3f6a;
   cursor: not-allowed;
   transform: none;
