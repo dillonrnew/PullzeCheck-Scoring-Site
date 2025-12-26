@@ -140,8 +140,7 @@ const CreateTeamModal: React.FC<Props> = ({ open, onClose, tourneyId, onCreate }
 
     const run = async () => {
       try {
-        const idsToExclude = [me?.id, p3Selected?.id].filter(Boolean) as string[];
-        const sug = await fetchSuggestions(p2Text, idsToExclude);
+        const sug = await fetchSuggestions(p2Text, excludeIds);
         setP2Sug(sug);
       } catch (e) {
         console.error(e);
@@ -150,7 +149,7 @@ const CreateTeamModal: React.FC<Props> = ({ open, onClose, tourneyId, onCreate }
     };
 
     run();
-  }, [p2Text, activeField, open, me?.id, p3Selected?.id]);
+  }, [p2Text, activeField, open, excludeIds]);
 
   // p3 suggestions
   useEffect(() => {
@@ -159,8 +158,7 @@ const CreateTeamModal: React.FC<Props> = ({ open, onClose, tourneyId, onCreate }
 
     const run = async () => {
       try {
-        const idsToExclude = [me?.id, p2Selected?.id].filter(Boolean) as string[];
-        const sug = await fetchSuggestions(p3Text, idsToExclude);
+        const sug = await fetchSuggestions(p3Text, excludeIds);
         setP3Sug(sug);
       } catch (e) {
         console.error(e);
@@ -169,7 +167,7 @@ const CreateTeamModal: React.FC<Props> = ({ open, onClose, tourneyId, onCreate }
     };
 
     run();
-  }, [p3Text, activeField, open, me?.id, p2Selected?.id]);
+  }, [p3Text, activeField, open, excludeIds]);
 
   // close suggestions if click outside
   useEffect(() => {

@@ -1,5 +1,5 @@
 // src/components/tourneyDetails/TourneyDetails.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TourneyCardTourney } from "../TourneyCard";
 import { supabase } from "../../supabaseClient";
 import type { TabKey } from "./types";
